@@ -266,7 +266,7 @@
   "version": "1.0.0",
   "author": "pockers5243-hue",
   "supportedTypes": ["movie", "tv"],
-  "filename": "https://raw.githubusercontent.com/pockers5243-hue/Testing/main/embedwave.js",
+      "filename": "providers/allanime.js",
   "enabled": true,
   "hasSettings": false,
   "formats": ["m3u8", "mp4"],
