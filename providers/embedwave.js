@@ -1,5 +1,5 @@
 /**
- * Direct M3U8 Scraper for EmbedWave
+ * EmbedWave Dynamic Stream Scraper
  * Path: providers/embedwave.js
  */
 
@@ -14,7 +14,6 @@ const HEADERS = {
 
 async function getStreams(tmdbId, mediaType, season, episode) {
   const streams = [];
-
   if (!tmdbId) return streams;
 
   const isTv = mediaType === "tv" || mediaType === "series";
@@ -23,28 +22,60 @@ async function getStreams(tmdbId, mediaType, season, episode) {
     : `${BASE_URL}/embed/movie/${tmdbId}`;
 
   try {
-    const response = await fetch(targetUrl, {
-      method: "GET",
-      headers: HEADERS
-    });
+    // Step 1: Fetch the initial outer embed page
+    const outerResp = await fetch(targetUrl, { headers: HEADERS });
+    if (!outerResp.ok) return streams;
+    const outerHtml = await outerResp.text();
 
-    if (!response.ok) return streams;
+    // Look for direct .m3u8 links first
+    let m3u8Matches = outerHtml.match(/(https?:\/\/[^\s"'<>]+\.m3u8[^\s"'<>]*)/gi) || [];
 
-    const htmlText = await response.text();
+    // Step 2: If no direct m3u8, extract the nested iframe/player source URL
+    if (m3u8Matches.length === 0) {
+      const iframeMatch = outerHtml.match(/<iframe[^>]+src=["']([^"']+)["']/i) ||
+                          outerHtml.match(/src\s*:\s*["']([^"']+)["']/i);
 
-    // Regex strictly targeted at direct m3u8 playlist URLs
-    const m3u8Regex = /(https?:\/\/[^\s"'<>]+\.m3u8[^\s"'<>]*)/gi;
-    const matches = htmlText.match(m3u8Regex) || [];
-    const uniqueUrls = [...new Set(matches)];
+      if (iframeMatch && iframeMatch[1]) {
+        let playerUrl = iframeMatch[1];
+        if (playerUrl.startsWith("//")) playerUrl = `https:${playerUrl}`;
+        else if (playerUrl.startsWith("/")) playerUrl = `${BASE_URL}${playerUrl}`;
 
-    uniqueUrls.forEach((streamUrl, index) => {
+        // Step 3: Fetch the internal player frame page
+        const playerResp = await fetch(playerUrl, {
+          headers: {
+            ...HEADERS,
+            "Referer": targetUrl
+          }
+        });
+
+        if (playerResp.ok) {
+          const playerHtml = await playerResp.text();
+
+          // Search player frame HTML for .m3u8 or source configurations
+          const innerMatches = playerHtml.match(/(https?:\/\/[^\s"'<>]+\.m3u8[^\s"'<>]*)/gi) || [];
+          m3u8Matches = [...innerMatches];
+
+          // Search for JS object file properties (e.g. file: "https://...")
+          const filePropMatch = playerHtml.match(/file\s*:\s*["']([^"']+)["']/i);
+          if (filePropMatch && filePropMatch[1]) {
+            m3u8Matches.push(filePropMatch[1]);
+          }
+        }
+      }
+    }
+
+    // Step 4: Build Nuvio stream items
+    const uniqueUrls = [...new Set(m3u8Matches)];
+    uniqueUrls.forEach((streamUrl, idx) => {
+      let finalUrl = streamUrl;
+      if (finalUrl.startsWith("//")) finalUrl = `https:${finalUrl}`;
+
       streams.push({
-        name: `${PROVIDER_NAME} • Server ${index + 1}`,
+        name: `${PROVIDER_NAME} • Direct HLS`,
         title: isTv ? `📺 S${season}E${episode}` : `🎬 Movie Stream`,
-        url: streamUrl,
+        url: finalUrl,
         quality: "1080p",
         type: "hls",
-        // Stream segments enforce origin/referer checks
         headers: {
           "User-Agent": HEADERS["User-Agent"],
           "Referer": targetUrl,
@@ -52,8 +83,9 @@ async function getStreams(tmdbId, mediaType, season, episode) {
         }
       });
     });
-  } catch (error) {
-    console.log(`[${PROVIDER_NAME}] M3U8 Scrape Error: ${error.message}`);
+
+  } catch (err) {
+    console.log(`[${PROVIDER_NAME}] Fetch error: ${err.message}`);
   }
 
   return streams;
