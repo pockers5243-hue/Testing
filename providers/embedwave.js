@@ -44,10 +44,28 @@ function clean(html) {
   return html.replace(/\\u0026/g, '&').replace(/&amp;/g, '&').replace(/\\\//g, '/');
 }
 
-function findStreams(html) {
-  var found = clean(html).match(/https?:\/\/[^"'\s<>\\)]+?\.(?:m3u8|mp4)(?:\?[^"'\s<>\\)]*)?/gi) || [];
-  var seen = {};
-  return found.filter(function (u) { if (seen[u]) return false; seen[u] = 1; return true; });
+var DEBUG = true; // logs page diagnostics; set false once working
+
+function tryAtob(str) {
+  try { return typeof atob === 'function' ? atob(str) : ''; } catch (_) { return ''; }
+}
+
+function findStreams(html, base) {
+  var text = clean(html);
+  // decode long base64 blobs that may hide a URL
+  var blobs = text.match(/[A-Za-z0-9+\/=]{40,}/g) || [];
+  blobs.slice(0, 20).forEach(function (b) {
+    var d = tryAtob(b);
+    if (/\.(m3u8|mp4)/i.test(d)) text += '\n' + clean(d);
+  });
+  // absolute, protocol-relative and root/relative paths
+  var re = /(?:https?:)?\/\/[^"'\s<>\\)]+?\.(?:m3u8|mp4)(?:\?[^"'\s<>\\)]*)?|["'(](\/?[\w.\-\/]+\.(?:m3u8|mp4)(?:\?[^"'\s<>\\)]*)?)["')]/gi;
+  var out = [], seen = {}, m;
+  while ((m = re.exec(text)) !== null) {
+    var u = absolute(m[1] || m[0], base || BASE + '/');
+    if (!seen[u]) { seen[u] = 1; out.push(u); }
+  }
+  return out;
 }
 
 function findIframes(html, base) {
@@ -72,7 +90,13 @@ function guessQuality(url) {
 function extract(url, referer, depth, meta) {
   return getText(url, referer, 8000).then(function (html) {
     if (depth === 0) meta.page = parseTitle(html);
-    var streams = findStreams(html);
+    if (DEBUG) {
+      log('depth ' + depth + ' ' + url + ' len=' + html.length);
+      log('iframes: ' + findIframes(html, url).join(' | '));
+      log('scripts: ' + (html.match(/<script[^>]+src=["'][^"']+/gi) || []).slice(0, 8).join(' | '));
+      log('head: ' + html.replace(/\s+/g, ' ').slice(0, 400));
+    }
+    var streams = findStreams(html, url);
     if (streams.length) {
       return streams.map(function (s) { return { url: s, referer: url }; });
     }
