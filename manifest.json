@@ -259,20 +259,20 @@
       "logo": "https://i.postimg.cc/0NvGzFyK/castle.png",
       "contentLanguage": ["en"]
     },
-    {
-      "id": "Cineby",
-      "name": "Cineby",
-      "description": "Multi-server movie and TV streaming — 4K/1080p/720p from Videasy network without subtitles",
-      "version": "1.9.2",
-      "author": "Nuvio Team",
-      "supportedTypes": ["movie", "tv"],
-      "filename": "providers/cineby.js",
-      "enabled": true,
-      "hasSettings": true,
-      "formats": ["m3u8"],
-      "logo": "https://i.postimg.cc/dV1HWbqX/cineby.png",
-      "contentLanguage": ["ar", "en"]
-    },
+{
+  "id": "filmu",
+  "name": "FilmU",
+  "description": "Multi-server movie and TV streaming — 4K/1080p/720p from Videasy network without subtitles",
+  "version": "1.9.2",
+  "author": "Nuvio Team",
+  "supportedTypes": ["movie", "tv"],
+  "filename": "providers/filmu.js",
+  "enabled": true,
+  "hasSettings": true,
+  "formats": ["m3u8"],
+  "logo": "https://i.postimg.cc/dV1HWbqX/cineby.png",
+  "contentLanguage": ["ar", "en"]
+},
     {
       "id": "cinefreak",
       "name": "CineFreak",
